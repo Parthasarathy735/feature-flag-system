@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Super Admin · Feature Flags</title>
+<style>
+  :root {
+    --accent: #b3261e;
+    --accent-dark: #8c1d17;
+    --bg: #f7f5f3;
+    --panel: #ffffff;
+    --border: #e2ddd8;
+    --text: #221f1d;
+    --text-muted: #6b6460;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: var(--accent);
+    color: #fff;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }
+  header span.tag {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.85;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 32px 20px 60px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .panel h2 { margin: 0 0 16px; font-size: 16px; }
+  label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 4px; margin-top: 12px; }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    margin-top: 18px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { background: var(--accent-dark); }
+  button.secondary {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  button.secondary:hover { background: #fbeceb; }
+  .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 200px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .empty { color: var(--text-muted); font-size: 14px; padding: 12px 0; }
+  .error { color: var(--accent); font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: #f0ece9; color: var(--text-muted); }
+  .topbar { display: flex; justify-content: space-between; align-items: center; }
+  #loginView, #dashboardView { display: none; }
+  .hint { color: var(--text-muted); font-size: 12px; margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Feature Flags</h1>
+  <span class="tag">Super Admin Console</span>
+</header>
+
+<main>
+
+  <section id="loginView" class="panel" style="max-width:400px;">
+    <h2>Log in</h2>
+    <form id="loginForm">
+      <label for="username">Username</label>
+      <input id="username" autocomplete="username" required />
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required />
+      <button type="submit">Log in</button>
+      <div class="error" id="loginError"></div>
+    </form>
+    <p class="hint">Static credentials, set on the backend (see backend/.env.example).</p>
+  </section>
+
+  <section id="dashboardView">
+    <div class="topbar panel" style="padding:16px 24px;">
+      <div>Signed in as <strong id="whoami"></strong></div>
+      <button class="secondary" id="logoutBtn" type="button">Log out</button>
+    </div>
+
+    <div class="panel">
+      <h2>Create organization</h2>
+      <form id="createOrgForm" class="row">
+        <div>
+          <label for="orgName">Organization name</label>
+          <input id="orgName" placeholder="e.g. Byepo Technologies" required />
+        </div>
+        <button type="submit">Create</button>
+      </form>
+      <div class="error" id="createOrgError"></div>
+    </div>
+
+    <div class="panel">
+      <div class="topbar">
+        <h2>Organizations</h2>
+        <button class="secondary" id="refreshBtn" type="button">Refresh</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Name</th><th>Admins</th><th>Flags</th><th>Created</th></tr>
+        </thead>
+        <tbody id="orgRows"></tbody>
+      </table>
+      <div class="empty" id="orgEmpty" style="display:none;">No organizations yet. Create one above.</div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  // Point this at your backend. Defaults to local dev.
+  const API_BASE = "http://localhost:4000/api";
+
+  const els = {
+    loginView: document.getElementById("loginView"),
+    dashboardView: document.getElementById("dashboardView"),
+    loginForm: document.getElementById("loginForm"),
+    loginError: document.getElementById("loginError"),
+    whoami: document.getElementById("whoami"),
+    logoutBtn: document.getElementById("logoutBtn"),
+    createOrgForm: document.getElementById("createOrgForm"),
+    createOrgError: document.getElementById("createOrgError"),
+    orgRows: document.getElementById("orgRows"),
+    orgEmpty: document.getElementById("orgEmpty"),
+    refreshBtn: document.getElementById("refreshBtn"),
+  };
+
+  function getToken() { return localStorage.getItem("ff_super_admin_token"); }
+  function getUsername() { return localStorage.getItem("ff_super_admin_username"); }
+  function setSession(token, username) {
+    localStorage.setItem("ff_super_admin_token", token);
+    localStorage.setItem("ff_super_admin_username", username);
+  }
+  function clearSession() {
+    localStorage.removeItem("ff_super_admin_token");
+    localStorage.removeItem("ff_super_admin_username");
+  }
+
+  function showView() {
+    const loggedIn = Boolean(getToken());
+    els.loginView.style.display = loggedIn ? "none" : "block";
+    els.dashboardView.style.display = loggedIn ? "block" : "none";
+    if (loggedIn) {
+      els.whoami.textContent = getUsername();
+      loadOrgs();
+    }
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(API_BASE + path, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(getToken() ? { Authorization: "Bearer " + getToken() } : {}),
+        ...(options.headers || {}),
+      },
+    });
+    const data = res.status === 204 ? null : await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error((data && data.error) || `Request failed (${res.status})`);
+    }
+    return data;
+  }
+
+  els.loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    els.loginError.textContent = "";
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value;
+    try {
+      const data = await api("/auth/super-admin/login", {
+        method: "POST",
+        body: JSON.stringify({ username, password }),
+      });
+      setSession(data.token, data.user.username);
+      showView();
+    } catch (err) {
+      els.loginError.textContent = err.message;
+    }
+  });
+
+  els.logoutBtn.addEventListener("click", () => {
+    clearSession();
+    showView();
+  });
+
+  els.createOrgForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    els.createOrgError.textContent = "";
+    const name = document.getElementById("orgName").value.trim();
+    try {
+      await api("/organizations", { method: "POST", body: JSON.stringify({ name }) });
+      document.getElementById("orgName").value = "";
+      loadOrgs();
+    } catch (err) {
+      els.createOrgError.textContent = err.message;
+    }
+  });
+
+  els.refreshBtn.addEventListener("click", loadOrgs);
+
+  async function loadOrgs() {
+    try {
+      const data = await api("/organizations");
+      const orgs = data.organizations || [];
+      els.orgRows.innerHTML = "";
+      els.orgEmpty.style.display = orgs.length ? "none" : "block";
+      for (const org of orgs) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${org.id}</td>
+          <td>${escapeHtml(org.name)}</td>
+          <td><span class="pill">${org.admin_count}</span></td>
+          <td><span class="pill">${org.flag_count}</span></td>
+          <td>${org.created_at}</td>
+        `;
+        els.orgRows.appendChild(tr);
+      }
+    } catch (err) {
+      if (err.message.includes("401") || err.message.includes("token")) {
+        clearSession();
+        showView();
+      }
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  showView();
+</script>
+
+</body>
+</html>

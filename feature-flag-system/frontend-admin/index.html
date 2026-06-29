@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Org Admin · Feature Flags</title>
+<style>
+  :root {
+    --accent: #2451b8;
+    --accent-dark: #1b3c8f;
+    --bg: #f5f6f9;
+    --panel: #ffffff;
+    --border: #dfe3ea;
+    --text: #1d2228;
+    --text-muted: #6b727c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: var(--accent);
+    color: #fff;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 700; }
+  header span.tag { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; }
+  main { max-width: 880px; margin: 0 auto; padding: 32px 20px 60px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-bottom: 24px; }
+  .panel h2 { margin: 0 0 16px; font-size: 16px; }
+  label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 4px; margin-top: 12px; }
+  input, select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    margin-top: 18px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { background: var(--accent-dark); }
+  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  button.secondary:hover { background: #ebf0fb; }
+  button.danger { background: #b3261e; }
+  button.danger:hover { background: #8c1d17; }
+  .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 160px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tabs button { margin-top: 0; background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+  .tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .empty { color: var(--text-muted); font-size: 14px; padding: 12px 0; }
+  .error { color: #b3261e; font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; }
+  #authView, #dashboardView, #signupForm, #loginForm { display: none; }
+  .switch { position: relative; display: inline-block; width: 42px; height: 24px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; inset: 0; background: #ccc; border-radius: 24px; transition: 0.15s; }
+  .slider::before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.15s; }
+  input:checked + .slider { background: var(--accent); }
+  input:checked + .slider::before { transform: translateX(18px); }
+  .actions { display: flex; gap: 8px; }
+  .actions button { margin-top: 0; padding: 6px 12px; font-size: 13px; }
+  .switchTab { color: var(--accent); cursor: pointer; text-decoration: underline; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Feature Flags</h1>
+  <span class="tag">Organization Admin</span>
+</header>
+
+<main>
+
+  <section id="authView" class="panel" style="max-width:420px;">
+    <div class="tabs">
+      <button type="button" id="tabLogin" class="active">Log in</button>
+      <button type="button" id="tabSignup">Sign up</button>
+    </div>
+
+    <form id="loginForm" style="display:block;">
+      <label for="loginEmail">Email</label>
+      <input id="loginEmail" type="email" autocomplete="username" required />
+      <label for="loginPassword">Password</label>
+      <input id="loginPassword" type="password" autocomplete="current-password" required />
+      <button type="submit">Log in</button>
+      <div class="error" id="loginError"></div>
+    </form>
+
+    <form id="signupForm">
+      <label for="signupOrg">Organization</label>
+      <select id="signupOrg" required></select>
+      <label for="signupName">Your name</label>
+      <input id="signupName" required />
+      <label for="signupEmail">Email</label>
+      <input id="signupEmail" type="email" autocomplete="username" required />
+      <label for="signupPassword">Password</label>
+      <input id="signupPassword" type="password" autocomplete="new-password" required />
+      <button type="submit">Create account</button>
+      <div class="error" id="signupError"></div>
+    </form>
+  </section>
+
+  <section id="dashboardView">
+    <div class="topbar panel" style="padding:16px 24px;">
+      <div>Signed in as <strong id="whoami"></strong> · org <strong id="orgName"></strong></div>
+      <button class="secondary" id="logoutBtn" type="button">Log out</button>
+    </div>
+
+    <div class="panel">
+      <h2>New feature flag</h2>
+      <form id="createFlagForm" class="row">
+        <div>
+          <label for="flagKey">Feature key</label>
+          <input id="flagKey" placeholder="e.g. dark_mode" required />
+        </div>
+        <div>
+          <label for="flagDescription">Description (optional)</label>
+          <input id="flagDescription" placeholder="What does this control?" />
+        </div>
+        <div style="flex: 0 0 auto; display:flex; align-items:center; gap:8px; padding-bottom:10px;">
+          <label class="switch"><input type="checkbox" id="flagEnabled" /><span class="slider"></span></label>
+          <span style="font-size:13px; color:var(--text-muted);">Enabled</span>
+        </div>
+        <button type="submit">Create flag</button>
+      </form>
+      <div class="error" id="createFlagError"></div>
+    </div>
+
+    <div class="panel">
+      <div class="topbar">
+        <h2>Your flags</h2>
+        <button class="secondary" id="refreshBtn" type="button">Refresh</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Key</th><th>Description</th><th>Status</th><th>Updated</th><th></th></tr>
+        </thead>
+        <tbody id="flagRows"></tbody>
+      </table>
+      <div class="empty" id="flagEmpty" style="display:none;">No flags yet. Create one above.</div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  const API_BASE = "http://localhost:4000/api";
+
+  const els = {
+    authView: document.getElementById("authView"),
+    dashboardView: document.getElementById("dashboardView"),
+    tabLogin: document.getElementById("tabLogin"),
+    tabSignup: document.getElementById("tabSignup"),
+    loginForm: document.getElementById("loginForm"),
+    signupForm: document.getElementById("signupForm"),
+    loginError: document.getElementById("loginError"),
+    signupError: document.getElementById("signupError"),
+    signupOrg: document.getElementById("signupOrg"),
+    whoami: document.getElementById("whoami"),
+    orgNameEl: document.getElementById("orgName"),
+    logoutBtn: document.getElementById("logoutBtn"),
+    createFlagForm: document.getElementById("createFlagForm"),
+    createFlagError: document.getElementById("createFlagError"),
+    flagRows: document.getElementById("flagRows"),
+    flagEmpty: document.getElementById("flagEmpty"),
+    refreshBtn: document.getElementById("refreshBtn"),
+  };
+
+  function getSession() {
+    const raw = localStorage.getItem("ff_org_admin_session");
+    return raw ? JSON.parse(raw) : null;
+  }
+  function setSession(token, user) {
+    localStorage.setItem("ff_org_admin_session", JSON.stringify({ token, user }));
+  }
+  function clearSession() {
+    localStorage.removeItem("ff_org_admin_session");
+  }
+
+  els.tabLogin.addEventListener("click", () => switchTab("login"));
+  els.tabSignup.addEventListener("click", () => switchTab("signup"));
+
+  function switchTab(which) {
+    const isLogin = which === "login";
+    els.tabLogin.classList.toggle("active", isLogin);
+    els.tabSignup.classList.toggle("active", !isLogin);
+    els.loginForm.style.display = isLogin ? "block" : "none";
+    els.signupForm.style.display = isLogin ? "none" : "block";
+    if (!isLogin) loadPublicOrgs();
+  }
+
+  async function loadPublicOrgs() {
+    try {
+      const res = await fetch(API_BASE + "/organizations/public");
+      const data = await res.json();
+      els.signupOrg.innerHTML = (data.organizations || [])
+        .map((o) => `<option value="${o.id}">${escapeHtml(o.name)}</option>`)
+        .join("");
+      if (!data.organizations || !data.organizations.length) {
+        els.signupOrg.innerHTML = `<option value="">No organizations yet — ask your Super Admin</option>`;
+      }
+    } catch (err) {
+      els.signupError.textContent = "Could not load organizations. Is the backend running?";
+    }
+  }
+
+  async function showView() {
+    const session = getSession();
+    els.authView.style.display = session ? "none" : "block";
+    els.dashboardView.style.display = session ? "block" : "none";
+    if (session) {
+      els.whoami.textContent = session.user.name || session.user.email;
+      els.orgNameEl.textContent = await resolveOrgName(session.user.orgId);
+      loadFlags();
+    } else {
+      switchTab("login");
+    }
+  }
+
+  async function resolveOrgName(orgId) {
+    try {
+      const res = await fetch(API_BASE + "/organizations/public");
+      const data = await res.json();
+      const match = (data.organizations || []).find((o) => o.id === orgId);
+      return match ? match.name : `#${orgId}`;
+    } catch {
+      return `#${orgId}`;
+    }
+  }
+
+  async function api(path, options = {}) {
+    const session = getSession();
+    const res = await fetch(API_BASE + path, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(session ? { Authorization: "Bearer " + session.token } : {}),
+        ...(options.headers || {}),
+      },
+    });
+    const data = res.status === 204 ? null : await res.json().catch(() => null);
+    if (!res.ok) throw new Error((data && data.error) || `Request failed (${res.status})`);
+    return data;
+  }
+
+  els.loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    els.loginError.textContent = "";
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    try {
+      const data = await api("/auth/org-admin/login", { method: "POST", body: JSON.stringify({ email, password }) });
+      setSession(data.token, data.user);
+      showView();
+    } catch (err) {
+      els.loginError.textContent = err.message;
+    }
+  });
+
+  els.signupForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    els.signupError.textContent = "";
+    const orgId = Number(els.signupOrg.value);
+    const name = document.getElementById("signupName").value.trim();
+    const email = document.getElementById("signupEmail").value.trim();
+    const password = document.getElementById("signupPassword").value;
+    if (!orgId) { els.signupError.textContent = "Choose an organization first."; return; }
+    try {
+      const data = await api("/auth/org-admin/signup", {
+        method: "POST",
+        body: JSON.stringify({ orgId, name, email, password }),
+      });
+      setSession(data.token, data.user);
+      showView();
+    } catch (err) {
+      els.signupError.textContent = err.message;
+    }
+  });
+
+  els.logoutBtn.addEventListener("click", () => { clearSession(); showView(); });
+  els.refreshBtn.addEventListener("click", loadFlags);
+
+  els.createFlagForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    els.createFlagError.textContent = "";
+    const key = document.getElementById("flagKey").value.trim();
+    const description = document.getElementById("flagDescription").value.trim();
+    const enabled = document.getElementById("flagEnabled").checked;
+    try {
+      await api("/flags", { method: "POST", body: JSON.stringify({ key, description, enabled }) });
+      document.getElementById("flagKey").value = "";
+      document.getElementById("flagDescription").value = "";
+      document.getElementById("flagEnabled").checked = false;
+      loadFlags();
+    } catch (err) {
+      els.createFlagError.textContent = err.message;
+    }
+  });
+
+  async function loadFlags() {
+    try {
+      const data = await api("/flags");
+      const flags = data.flags || [];
+      els.flagRows.innerHTML = "";
+      els.flagEmpty.style.display = flags.length ? "none" : "block";
+      for (const flag of flags) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><code>${escapeHtml(flag.key)}</code></td>
+          <td>${escapeHtml(flag.description || "—")}</td>
+          <td>
+            <label class="switch">
+              <input type="checkbox" data-id="${flag.id}" class="toggle" ${flag.enabled ? "checked" : ""} />
+              <span class="slider"></span>
+            </label>
+          </td>
+          <td>${flag.updated_at}</td>
+          <td class="actions"><button class="danger" data-id="${flag.id}" data-action="delete">Delete</button></td>
+        `;
+        els.flagRows.appendChild(tr);
+      }
+      els.flagRows.querySelectorAll(".toggle").forEach((cb) => {
+        cb.addEventListener("change", async () => {
+          try {
+            await api(`/flags/${cb.dataset.id}`, { method: "PUT", body: JSON.stringify({ enabled: cb.checked }) });
+            loadFlags();
+          } catch (err) {
+            alert(err.message);
+            loadFlags();
+          }
+        });
+      });
+      els.flagRows.querySelectorAll('[data-action="delete"]').forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Delete this flag?")) return;
+          try {
+            await api(`/flags/${btn.dataset.id}`, { method: "DELETE" });
+            loadFlags();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
+    } catch (err) {
+      if (err.message.includes("401") || err.message.toLowerCase().includes("token")) {
+        clearSession();
+        showView();
+      }
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  showView();
+</script>
+
+</body>
+</html>

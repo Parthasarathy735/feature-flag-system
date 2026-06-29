@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Check a Feature · Feature Flags</title>
+<style>
+  :root {
+    --accent: #1f7a4d;
+    --accent-dark: #155c39;
+    --bg: #f4f8f6;
+    --panel: #ffffff;
+    --border: #dce7e1;
+    --text: #1c2420;
+    --text-muted: #677067;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: var(--accent);
+    color: #fff;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 700; }
+  header span.tag { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; }
+  main { max-width: 480px; margin: 0 auto; padding: 48px 20px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 28px; }
+  .panel h2 { margin: 0 0 8px; font-size: 18px; }
+  .panel p.lead { color: var(--text-muted); font-size: 14px; margin: 0 0 20px; }
+  label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 4px; margin-top: 16px; }
+  input, select {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 15px;
+    background: #fff;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    margin-top: 22px;
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { background: var(--accent-dark); }
+  button:disabled { opacity: 0.6; cursor: default; }
+  #result {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: 8px;
+    font-size: 15px;
+    display: none;
+  }
+  #result.enabled { background: #e6f4ec; color: var(--accent-dark); display: block; }
+  #result.disabled { background: #f6efe9; color: #8a5a1f; display: block; }
+  #result.error { background: #fbeceb; color: #8c1d17; display: block; }
+  #result strong { display: block; font-size: 16px; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Feature Flags</h1>
+  <span class="tag">Check a feature</span>
+</header>
+
+<main>
+  <div class="panel">
+    <h2>Is this feature on for you?</h2>
+    <p class="lead">Pick your organization, enter the feature key, and submit.</p>
+
+    <form id="checkForm">
+      <label for="orgSelect">Organization</label>
+      <select id="orgSelect" required></select>
+
+      <label for="featureKey">Feature key</label>
+      <input id="featureKey" placeholder="e.g. dark_mode" required />
+
+      <button type="submit" id="submitBtn">Check feature</button>
+    </form>
+
+    <div id="result"></div>
+  </div>
+</main>
+
+<script>
+  const API_BASE = "http://localhost:4000/api";
+
+  const orgSelect = document.getElementById("orgSelect");
+  const featureKey = document.getElementById("featureKey");
+  const result = document.getElementById("result");
+  const submitBtn = document.getElementById("submitBtn");
+
+  async function loadOrgs() {
+    try {
+      const res = await fetch(API_BASE + "/organizations/public");
+      const data = await res.json();
+      const orgs = data.organizations || [];
+      orgSelect.innerHTML = orgs.length
+        ? orgs.map((o) => `<option value="${o.id}">${escapeHtml(o.name)}</option>`).join("")
+        : `<option value="">No organizations available</option>`;
+    } catch {
+      orgSelect.innerHTML = `<option value="">Could not load organizations</option>`;
+    }
+  }
+
+  document.getElementById("checkForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const orgId = orgSelect.value;
+    const key = featureKey.value.trim();
+    if (!orgId) return;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Checking…";
+    result.className = "";
+    result.style.display = "none";
+
+    try {
+      const res = await fetch(`${API_BASE}/flags/check?orgId=${encodeURIComponent(orgId)}&key=${encodeURIComponent(key)}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        result.className = "error";
+        result.innerHTML = `<strong>Couldn't check that feature</strong>${escapeHtml(data.error || "Unknown error")}`;
+      } else if (data.enabled) {
+        result.className = "enabled";
+        result.innerHTML = `<strong>Enabled</strong>"${escapeHtml(data.key)}" is turned on for ${escapeHtml(orgSelect.options[orgSelect.selectedIndex].text)}.`;
+      } else {
+        result.className = "disabled";
+        result.innerHTML = `<strong>Disabled</strong>"${escapeHtml(data.key)}" is turned off for ${escapeHtml(orgSelect.options[orgSelect.selectedIndex].text)}.`;
+      }
+    } catch (err) {
+      result.className = "error";
+      result.innerHTML = `<strong>Couldn't reach the server</strong>Is the backend running?`;
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Check feature";
+    }
+  });
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  loadOrgs();
+</script>
+
+</body>
+</html>
